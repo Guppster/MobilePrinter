@@ -1,159 +1,188 @@
 package com.example.dell.mobileprinter;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.net.Uri;
-import android.os.Environment;
-import android.provider.MediaStore;
-import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.provider.MediaStore;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+public class MainActivity extends Activity implements View.OnClickListener, View.OnTouchListener {
+    private static int RESULT_LOAD_IMG = 1;
+    String imgDecodableString;
 
-
-public class MainActivity extends ActionBarActivity {
+    Bitmap bmp;
+    Bitmap alteredBitmap;
+    Canvas canvas;
+    Paint paint;
+    Matrix matrix;
+    float downx = 0;
+    float downy = 0;
+    float upx = 0;
+    float upy = 0;
+    private ImageView imgView;
+    private Button loadPicture;
+    private Button drawPicture;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        imgView = (ImageView) this.findViewById(R.id.imgView);
+
     }
 
+    public void loadImagefromGallery(View view) {
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+    public void drawImage(View view)
+    {
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        Uri path = Uri.parse("android.resource://com.example.dell.mobileprinter/" + R.drawable.white);
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    private void selectImage() {
-        final CharSequence[] items = { "Take Photo", "Choose from Library",
-                "Cancel" };
-
-        final int REQUEST_CAMERA = 1;
-        final int SELECT_FILE = 1;
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-        builder.setTitle("Add Photo!");
-        builder.setItems(items, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int item) {
-                if (items[item].equals("Take Photo")) {
-                    Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                    File f = new File(android.os.Environment
-                            .getExternalStorageDirectory(), "temp.jpg");
-                    intent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(f));
-                    startActivityForResult(intent, REQUEST_CAMERA);
-                } else if (items[item].equals("Choose from Library")) {
-                    Intent intent = new Intent(
-                            Intent.ACTION_PICK,
-                            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-                    intent.setType("image/*");
-                    startActivityForResult(
-                            Intent.createChooser(intent, "Select File"),
-                            SELECT_FILE);
-                } else if (items[item].equals("Cancel")) {
-                    dialog.dismiss();
-                }
-            }
-        });
-        builder.show();
+        intent.setData(path);
+        startActivityForResult(intent, 2);
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-
-        final int REQUEST_CAMERA = 1;
-        final int SELECT_FILE = 1;
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK) {
-            if (requestCode == REQUEST_CAMERA) {
-                File f = new File(Environment.getExternalStorageDirectory()
-                        .toString());
-                for (File temp : f.listFiles()) {
-                    if (temp.getName().equals("temp.jpg")) {
-                        f = temp;
-                        break;
-                    }
-                }
-                try {
-                    Bitmap bm;
-                    BitmapFactory.Options btmapOptions = new BitmapFactory.Options();
+        try {
+            //Once an image is selected, retrieve the data
+            if (requestCode == RESULT_LOAD_IMG && resultCode == RESULT_OK && null != data) {
 
-                    bm = BitmapFactory.decodeFile(f.getAbsolutePath(),
-                            btmapOptions);
+                Uri selectedImage = data.getData();
+                String[] filePathColumn = { MediaStore.Images.Media.DATA };
 
-                    // bm = Bitmap.createScaledBitmap(bm, 70, 70, true);
-                    ivImage.setImageBitmap(bm);
+                //Get the cursor and move it to the first row
+                Cursor cursor = getContentResolver().query(selectedImage,
+                        filePathColumn, null, null, null);
+                cursor.moveToFirst();
 
-                    String path = android.os.Environment
-                            .getExternalStorageDirectory()
-                            + File.separator
-                            + "Phoenix" + File.separator + "default";
-                    f.delete();
-                    OutputStream fOut = null;
-                    File file = new File(path, String.valueOf(System
-                            .currentTimeMillis()) + ".jpg");
-                    try {
-                        fOut = new FileOutputStream(file);
-                        bm.compress(Bitmap.CompressFormat.JPEG, 85, fOut);
-                        fOut.flush();
-                        fOut.close();
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } else if (requestCode == SELECT_FILE) {
-                Uri selectedImageUri = data.getData();
+                int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+                imgDecodableString = cursor.getString(columnIndex);
+                cursor.close();
+                ImageView imgView = (ImageView) findViewById(R.id.imgView);
 
-                String tempPath = getPath(selectedImageUri, MainActivity.this);
-                Bitmap bm;
-                BitmapFactory.Options btmapOptions = new BitmapFactory.Options();
-                bm = BitmapFactory.decodeFile(tempPath, btmapOptions);
-                ivImage.setImageBitmap(bm);
+                imgView.setImageBitmap(BitmapFactory.decodeFile(imgDecodableString));
             }
+            else if(requestCode == 2)
+            {
+                Uri imageFileUri = data.getData();
+                try {
+                    BitmapFactory.Options bmpFactoryOptions = new BitmapFactory.Options();
+                    bmpFactoryOptions.inJustDecodeBounds = true;
+                    bmp = BitmapFactory.decodeStream(getContentResolver().openInputStream(
+                            imageFileUri), null, bmpFactoryOptions);
+
+                    bmpFactoryOptions.inJustDecodeBounds = false;
+                    bmp = BitmapFactory.decodeStream(getContentResolver().openInputStream(
+                            imageFileUri), null, bmpFactoryOptions);
+
+                    alteredBitmap = Bitmap.createBitmap(bmp.getWidth(), bmp
+                            .getHeight(), bmp.getConfig());
+                    canvas = new Canvas(alteredBitmap);
+                    paint = new Paint();
+                    paint.setColor(Color.GREEN);
+                    paint.setStrokeWidth(5);
+                    matrix = new Matrix();
+                    canvas.drawBitmap(bmp, matrix, paint);
+
+                    imgView.setImageBitmap(alteredBitmap);
+                    imgView.setOnTouchListener(this);
+                } catch (Exception e) {
+                    Log.v("ERROR", e.toString());
+                }
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "You haven't picked Image", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Something went wrong", Toast.LENGTH_LONG).show();
         }
+
     }
 
-    public String getPath(Uri uri, Activity activity) {
-        String[] projection = { MediaStore.MediaColumns.DATA };
-        Cursor cursor = activity
-                .managedQuery(uri, projection, null, null, null);
-        int column_index = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA);
-        cursor.moveToFirst();
-        return cursor.getString(column_index);
+    public boolean onTouch(View v, MotionEvent event)
+    {
+        int action = event.getAction();
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                downx = event.getX();
+                downy = event.getY();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                upx = event.getX();
+                upy = event.getY();
+                canvas.drawLine(downx, downy, upx, upy, paint);
+                imgView.invalidate();
+                downx = upx;
+                downy = upy;
+                break;
+            case MotionEvent.ACTION_UP:
+                upx = event.getX();
+                upy = event.getY();
+                canvas.drawLine(downx, downy, upx, upy, paint);
+                imgView.invalidate();
+                break;
+            case MotionEvent.ACTION_CANCEL:
+                break;
+            default:
+                break;
+        }
+        return true;
     }
-   }
+
+    @Override
+    public void onClick(View v)
+    {
+        if (v == loadPicture)
+        {
+            // Create the intent
+            Intent galleryIntent = new Intent(Intent.ACTION_PICK,
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+
+            // Start intent
+            startActivityForResult(galleryIntent, RESULT_LOAD_IMG);
+        } else if (v == drawPicture)
+        {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Uri path = Uri.parse("android.resource://com.example.dell.mobileprinter/" + R.drawable.white);
+
+            intent.setData(path);
+            startActivityForResult(intent, 2);
+
+            /*
+
+            if (alteredBitmap != null) {
+                ContentValues contentValues = new ContentValues(3);
+                contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, "Draw On Me");
+
+                Uri imageFileUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
+                try {
+                    OutputStream imageFileOS = getContentResolver().openOutputStream(imageFileUri);
+                    alteredBitmap.compress(Bitmap.CompressFormat.JPEG, 90, imageFileOS);
+                    Toast t = Toast.makeText(this, "Saved!", Toast.LENGTH_SHORT);
+                    t.show();
+
+                } catch (Exception e) {
+                    Log.v("EXCEPTION", e.getMessage());
+                }
+            }
+            */
+        }
+
+    }
+}
